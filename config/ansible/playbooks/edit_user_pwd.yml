@@ -1,0 +1,40 @@
+---
+- hosts: nodes
+  become: yes
+  become_user: root
+  gather_facts: false
+  tasks:
+    - name: Edit User pwd
+      user:
+        name: ec2-user
+        update_password: always
+        password: "{{ new_pwd|password_hash('sha512') }}"
+      tags:
+        - edit-user-pwd
+    - name: Enable pwd in sshd_config
+      lineinfile:
+        dest: "/etc/ssh/sshd_config"
+        regexp: "^PasswordAuthentication"
+        line: "PasswordAuthentication yes"
+        insertafter: EOF
+        state: present
+      register: ssh_config
+      tags:
+        - ssh
+    - name: Disable ssh root login in sshd_config
+      lineinfile:
+        dest: "/etc/ssh/sshd_config"
+        regexp: "^#PermitRootLogin"
+        line: "PermitRootLogin no"
+        insertafter: EOF
+        state: present
+      register: ssh_config
+      tags:
+        - ssh
+    - name: Restart ssh
+      service:
+        name: sshd
+        state: restarted
+      when: ssh_config.changed
+      tags:
+        - ssh

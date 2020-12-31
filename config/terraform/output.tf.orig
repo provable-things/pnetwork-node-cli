@@ -1,0 +1,6 @@
+output "public_ip" {
+    value = aws_instance.tf-aws-instance-1.*.public_ip
+}
+output "inst_name" {
+    value = var.inst_name
+}

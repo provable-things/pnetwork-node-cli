@@ -1,0 +1,160 @@
+variable "region" {
+  type = string
+  default = "PH_REGION"
+}
+
+variable "access_key_id" {
+  type = string
+  default = "PH_ACCESS_KEY_ID"
+}
+
+variable "secret_access_key" {
+  type = string
+  default = "PH_SECRET_ACCESS_KEY"
+}
+
+variable "inst_name" {
+  type = string
+  default = "PH_INST_NAME"
+}
+
+variable "key_name" {
+  type = string
+  default = "PH_KEY_NAME"
+}
+
+variable "root_vol_size" {
+  type = string
+  default = "PH_ROOT_VOL_SIZE"
+}
+
+variable "key_pair_path" {
+  type = map
+  default = {
+      public_key_path = "PH_PUB_KEY_PATH"
+      private_key_path = "PH_PRIV_KEY_PATH"
+  }
+}
+
+variable "vpc_name" {
+  type = string
+  default = "PH_VPC_NAME"
+}
+
+variable "vpc_cidr_block" {
+  type = string
+  default = "PH_VPC_CIDR_BLOCK"
+}
+
+variable "instance_tenancy" {
+  type = string
+  default = "PH_INSTANCE_TENANCY"
+}
+
+variable "sub_name" {
+  type = string
+  default = "PH_SUB_NAME"
+}
+
+variable "sub_cidr_block" {
+  type = string
+  default = "PH_SUB_CIDR_BLOCK"
+}
+
+variable "map_public_ip_on_launch" {
+  type = string
+  default = "PH_MAP_PUBLIC_IP_ON_LAUNCH"
+}
+
+variable "availability_zone" {
+  type = string
+  default = "PH_AVAILABILITY_ZONE"
+}
+variable "rtb_cidr_block" {
+  type = string
+  default = "PH_RTB_CIDR_BLOCK"
+}
+variable "sg_name" {
+  type = string
+  default = "PH_SG_NAME"
+}
+variable "sg_desc" {
+  type = string
+  default = "PH_SG_DESC"
+}
+variable "ing_cidr_block" {
+  type = string
+  default = "PH_ING_CIDR_BLOCK"
+}
+variable "ing_from_port1" {
+  type = number
+  default = PH_ING_FROM_PORT1
+}
+variable "ing_to_port1" {
+  type = number
+  default = PH_ING_TO_PORT1
+}
+variable "ing_from_port2" {
+  type = number
+  default = PH_ING_FROM_PORT2
+}
+variable "ing_to_port2" {
+  type = number
+  default = PH_ING_TO_PORT2
+}
+variable "ing_from_port3" {
+  type = number
+  default = PH_ING_FROM_PORT3
+}
+variable "ing_to_port3" {
+  type = number
+  default = PH_ING_TO_PORT3
+}
+variable "ing_from_port4" {
+  type = number
+  default = PH_ING_FROM_PORT4
+}
+variable "ing_to_port4" {
+  type = number
+  default = PH_ING_TO_PORT4
+}
+variable "ing_from_port5" {
+  type = number
+  default = PH_ING_FROM_PORT5
+}
+variable "ing_to_port5" {
+  type = number
+  default = PH_ING_TO_PORT5
+}
+variable "ing_proto" {
+  type = string
+  default = "PH_ING_PROTO"
+}
+variable "egr_cidr_block" {
+  type = string
+  default = "PH_EGR_CIDR_BLOCK"
+}
+variable "egr_from_port" {
+  type = number
+  default = PH_EGR_FROM_PORT
+}
+variable "egr_to_port" {
+  type = number
+  default = PH_EGR_TO_PORT
+}
+variable "egr_proto" {
+  type = string
+  default = "PH_EGR_PROTO"
+}
+variable "inst_ami" {
+  type = string
+  default = "PH_INST_AMI"
+}
+variable "inst_type" {
+  type = string
+  default = "PH_INST_TYPE"
+}
+variable "iam_role" {
+  type = string
+  default = "PH_IAM_ROLE"
+}

@@ -1,0 +1,166 @@
+---
+- hosts: nodes
+  become: yes
+  become_user: root
+  gather_facts: false
+  tasks:
+  - name: Install misc packages
+    become: yes
+    yum:
+      name: [
+        'git',
+        'jq',
+        'llvm-devel',
+        'clang',
+        'gcc',
+        'openssl-devel',
+        'java-1.8.0-openjdk-devel',
+        'python3-devel',
+        'python3-pip'
+      ]
+      state: present
+      update_cache: yes
+    tags:
+      - sys
+  - name: Download nitro cli
+    become: yes
+    shell: amazon-linux-extras install aws-nitro-enclaves-cli -y
+    args:
+      warn: false
+    tags:
+      - nitro-enclave
+  - name: Install aws-nitro-enclaves-cli-devel
+    become: yes
+    yum:
+      name: [
+        'aws-nitro-enclaves-cli-devel'
+      ]
+      state: present
+      update_cache: yes
+    tags:
+      - sys
+  - name: Add remote "ec2-user" user to "ne" group
+    become: yes
+    shell: usermod -aG ne ec2-user
+    tags:
+      - sys
+  - name: Install docker
+    become: yes
+    shell: amazon-linux-extras install docker -y
+    tags:
+      - docker
+  - name: Install docker-compose
+    become: yes
+    get_url:
+      url : https://github.com/docker/compose/releases/download/1.25.1-rc1/docker-compose-Linux-x86_64
+      dest: /usr/local/bin/docker-compose
+      mode: 0755
+    tags:
+      - docker-compose
+  - name: Start docker service
+    become: yes
+    service:
+      name: docker
+      state: started
+    tags:
+      - docker
+  - name: Enable docker service
+    become: yes
+    service:
+      name: docker
+      enabled: yes
+    tags:
+      - docker
+  - name: Add remote "ec2-user" user to "docker" group
+    become: yes
+    shell: usermod -aG docker ec2-user
+    tags:
+      - docker
+  - name: Change file ownership and group on docker.sock
+    become: yes
+    file:
+      path: /var/run/docker.sock
+      owner: root
+      group: docker
+    tags:
+      - docker
+  - name: Change file ownership and group on docker
+    become: yes
+    file:
+      path: /usr/bin/docker
+      owner: root
+      group: docker
+    tags:
+      - docker
+  - name: Restart docker service
+    become: yes
+    service:
+      name: docker
+      state: restarted
+    tags:
+    - docker
+  - name: Set up mongodb stable repository
+    become: yes
+    yum_repository:
+      name: mongodb
+      description: mongodb
+      baseurl: http://repo.mongodb.org/yum/amazon/2/mongodb-org/4.2/x86_64/
+      gpgkey: https://www.mongodb.org/static/pgp/server-4.2.asc
+      enabled: yes
+      gpgcheck: yes
+    tags:
+      - mongo-db
+  - name: Update yum packages
+    become: yes
+    yum:
+      update_cache: yes
+    tags:
+      - mongo-db
+  - name: Install mongodb
+    become: yes
+    yum:
+      name: mongodb-org
+      state: present
+      update_cache: yes
+    tags:
+      - mongo-db
+  - name: Create mongo-db run dir
+    become: yes
+    file:
+      path: /var/run/mongodb
+      state: directory
+      owner: mongod
+      group: mongod
+      mode: '0755'
+    tags:
+      - mongo-db
+  - name: Start mongod service
+    become: yes
+    service:
+      name: mongod
+      state: started
+    tags:
+      - mongo-db
+  - name: Enable mongod service
+    become: yes
+    service:
+      name: mongod
+      enabled: yes
+    tags:
+      - mongo-db
+  - name: Download and run rustup installation script
+    become: no
+    become_user: ec2-user
+    shell: curl https://sh.rustup.rs -sSf | sh -s -- -y
+    args:
+      warn: false
+    tags:
+      - rust
+  - name: Set rustup path in source
+    become: no
+    become_user: ec2-user
+    shell: source $HOME/.cargo/env
+    args:
+      warn: false
+    tags:
+      - rust

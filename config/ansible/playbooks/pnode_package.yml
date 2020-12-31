@@ -1,0 +1,91 @@
+---
+- hosts: nodes
+  become: yes
+  become_user: root
+  gather_facts: false
+  tasks:
+    - name: Set up pnode stable repository
+      become: yes
+      yum_repository:
+        name: pnode
+        description: pNetwork Release Server
+        baseurl: https://release-server.nsw.p.network/pnode/rpm
+        gpgkey: https://release-server.nsw.p.network/gpg/pnetwork.asc
+        enabled: yes
+        gpgcheck: yes
+      tags:
+        - pnode
+    - name: Update yum packages
+      become: yes
+      yum:
+        update_cache: yes
+      tags:
+        - pnode
+    - name: Install pnode
+      become: yes
+      yum:
+        name: pnode-nitro
+        state: present
+        update_cache: yes
+      tags:
+        - pnode
+    - name: Install telegraf
+      become: yes
+      shell: |
+        wget https://dl.influxdata.com/telegraf/releases/telegraf-1.16.3-1.x86_64.rpm
+        rpm -i --replacefiles /home/ec2-user/telegraf-1.16.3-1.x86_64.rpm
+      tags:
+        - telegraf
+    - name: Delete telegraf config file
+      become: yes
+      file:
+        path: /etc/telegraf/telegraf.conf
+        state: absent
+      tags:
+        - telegraf
+    - name: Copy new telegraf config file
+      become: yes
+      copy:
+        src: /etc/pnode/config/telegraf.conf.new
+        dest: /etc/telegraf/telegraf.conf
+        remote_src: yes
+      tags:
+        - telegraf
+    - name: Add remote "telegraf" user to "docker" group
+      become: yes
+      shell: usermod -aG docker telegraf
+      tags:
+        - telegraf
+    - name: Enable telegraf service
+      become: yes
+      service:
+        name: telegraf
+        enabled: yes
+      tags:
+        - telegraf
+    - name: Start telegraf service
+      become: yes
+      service:
+        name: telegraf
+        state: started
+      tags:
+        - telegraf
+    - name: Recursively change ownership of /pnode-logs/
+      file:
+        path: /pnode-logs
+        state: directory
+        recurse: yes
+        owner: ec2-user
+        group: docker
+        mode: 0777
+      tags:
+        - fix_permissions
+    - name: Recursively change ownership of /etc/pnode/
+      file:
+        path: /etc/pnode
+        state: directory
+        recurse: yes
+        owner: ec2-user
+        group: ec2-user
+      tags:
+        - fix_permissions
