@@ -7,9 +7,10 @@ import node
 import utils as utl
 from client_config import CLI_CONFIG
 
+
 def main():
     '''
-    Start pCLI
+    Start pCLI, initialize logger and argparse
     '''
 
     logger = logging.getLogger(__name__)
@@ -87,6 +88,10 @@ def main():
                         metavar='',
                         dest='exec_script',
                         help='run script on node')
+    p_node.add_argument('--dev',
+                        action='store_true',
+                        dest='dev_mode',
+                        help='dev mode')
     p_node.add_argument(nargs=1,
                         choices=['clean',
                                  'destroy',

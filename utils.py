@@ -5,16 +5,13 @@ import pickle
 import random
 import string
 import subprocess
-import tarfile
-import zipfile
 import random_name
-import requests
 import yaml
 
 from client_config import CLI_CONFIG
 
 
-__version__ = '0.0'
+__version__ = '0.0-1'
 
 logger = logging.getLogger(__name__)
 
@@ -40,26 +37,25 @@ def print_ok_str(ok_str):
 
 def check_for_pcli_updates(args):
     '''
-    Check for distro, then check manifest (key_id and latest_version)
-    and compare with actual version.
-    If update found, print link to it
+    Print installed version and gh repo link
 
     Args:
         param1: cli args
     '''
     print(f'>>> installed version: {__version__}')
-    print('>>> please check out https://github-repo.com for updates')
+    print('>>> please check out '
+          'https://github.com/provable-things/pnetwork-node-cli/tree/master '
+          'for updates')
 
 def scp_file(file_rem_path, file_loc_path, node_name, to_node=False):
     '''
-    scp file on remote instance
+    scp file to/from instance by files path and node name (`to_node=True` so send)
 
     Args:
         param1: remote file path
         param2: local file path
         param3: node name
         param4: [optional] send file to node
-        return: stdout result string
     '''
     try:
         pub_ip = get_pub_ip(node_name)
@@ -189,7 +185,7 @@ def run_cmd(cmd, output=False, nowait=False, noerr=False, comm=False):
 
 def reboot_system(node_name):
     '''
-    Reboot instance
+    Reboot instance by node name
 
     Args:
        param1: node name
@@ -202,11 +198,16 @@ def get_inst_list(nodes_nr=False, single_node=False):
     '''
     Print list of active nodes (name: IP)
     Find folders in path which are not the defaults
+    `nodes_nr=True` return nr of nodes
+    `single_node=True` return single node name
+
+    Args:
+        param1: [optional] return nr of nodes
+        param2: [optional] return single node name
     '''
     tf_form_dir = os.path.abspath(
                       os.path.expanduser(
-                          os.path.expandvars(
-                              CLI_CONFIG['tf_config_dir'])))
+                          os.path.expandvars(CLI_CONFIG['tf_config_dir'])))
     for root, dirs, files in os.walk(tf_form_dir):
         # Get dirs with depth=1
         if root[len(tf_form_dir):].count(os.sep) < 1:
@@ -227,13 +228,12 @@ def get_inst_list(nodes_nr=False, single_node=False):
 
 def get_pub_ip(node_name):
     '''
-    Get public IP of the new instance via `terraform output` using the proper
-    state file
-    Returns a json
+    Return nodes's public IP via `terraform output` using the proper state file
+    If error, returns `unknown ip`
 
     Args:
-        param1: stdout result of `terraform output`
-        return: pub IP in string
+        param1: node name
+        return: public ip
     '''
     logger.info('Asking for instances\'s public ip')
     try:
@@ -243,18 +243,18 @@ def get_pub_ip(node_name):
         return json.loads(ip_name)['public_ip']['value'][0]
     except Exception as exc:
         logger.error(f'Error parsing public IP from terraform-output\n{exc}')
-        print(print_err_str('>>> error parsing public IP from terraform-output'))
+        return 'unknown ip'
 
 def read_file(file_path, yaml_f=False, state=False):
     '''
-    Read file from path and return it content
-    Works for yaml and pickle
+    Read file from path and return its content
+    Works also for yaml and pickle
 
     Args:
         param1: file path
         param2: [optional] yaml format
         param3: [optional] pickle format
-        return: file content (based on opt arg in signature)
+        return: file content
     '''
     try:
         if yaml_f is True:
@@ -271,13 +271,14 @@ def read_file(file_path, yaml_f=False, state=False):
 
 def write_file(file_content, dest_path, file_list=False, state=False):
     '''
-    Write content on a given path as file
-    Works for plain text, lists and pickle
+    Write data on a given path as file
+    Works also for lists and pickle files
 
     Args:
         param1: file content
-        param2: [optional] list format
-        param3: [optional] pickle format
+        param2: destination path
+        param3: [optional] list format
+        param4: [optional] pickle format
     '''
     try:
         if file_list is True:
@@ -298,12 +299,14 @@ def write_file(file_content, dest_path, file_list=False, state=False):
 
 def check_for_file_in_path(file_name, path, isdir=False, no_stdout=False):
     '''
-    Check for given file in given path
+    Check for file in a given path
 
     Args:
         param1: file name
-        param2:  file path
-        return: bool if file (or dir [`isdir=True`]) in path or not
+        param2: file path
+        param3: [optional] search for dir
+        param4: [optional] disable stdout
+        return: `True` if found, `False` if not
     '''
     if isdir is True:
         if os.path.isdir(f'{path}{file_name}'):
@@ -326,11 +329,11 @@ def check_for_file_in_path(file_name, path, isdir=False, no_stdout=False):
 
 def copy_file_in_path(origin, dest):
     '''
-    Copy file in given path
+    Copy file (full path) in a given path
 
     Args:
-        param1: origin path
-        param3: destination path
+        param1: origin file
+        param2: destination file
     '''
     run_cmd(f'cp -r {origin} {dest}')
 
@@ -347,11 +350,16 @@ def create_ssh_keypair(key_name):
     print('>>> creating ssh keypair')
     run_cmd(f'ssh-keygen -b 4096 -t rsa -f {dest_path} -q -N ""')
     run_cmd(f'chmod 600 {CLI_CONFIG["pcli_ssh_key_path"]}{key_name}')
-    if check_for_file_in_path(key_name, f'{CLI_CONFIG["pcli_ssh_key_path"]}', no_stdout=True):
-        logger.info(f'ssh keypair {key_name} created')
-        print(f'>>> ssh keypair {key_name} created')
 
 def pick_up_a_region():
+    '''
+    Print AZ list to user during provisioning
+    Map key with AZ short-name, then map AZ with AMI
+    Return selected AZ and its relative AMI
+
+    Args:
+        return: choosen region and ami
+    '''
     az = input('>>> select your region of choice (by number)\n'
                '>>> 1 - N.Virginia\n'
                '>>> 2 - Oregon\n'
@@ -396,14 +404,13 @@ def pick_up_a_region():
     print(f'>>> {sel_ami} selected')
     return sel_az, sel_ami
 
-
 def random_pwd_generator():
     '''
-    Create a random password based on alphanumerics char + '?%&$' 36 chars long
-    and print it in stdout
+    Create a random password based on alphanumerics char - 36 chars long - and
+    print it in stdout
 
     Args:
-        return: generated password string
+        return: generated pwd
     '''
     pwd_chars = string.ascii_letters + string.digits
     pwd = ''.join(random.choice(pwd_chars) for i in range(36))
@@ -416,7 +423,7 @@ def random_name_generator():
     Create random name (docker style) for instance
 
     Args:
-        return: generated name string
+        return: generated name
     '''
     node_name = random_name.generate_name().split('-', 1)[1]
     logging.info('Random instance name generated')

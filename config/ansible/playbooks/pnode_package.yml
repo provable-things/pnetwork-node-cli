@@ -9,7 +9,7 @@
       yum_repository:
         name: pnode
         description: pNetwork Release Server
-        baseurl: https://release-server.nsw.p.network/pnode/rpm
+        baseurl: "{{ pnode_rel_url }}"
         gpgkey: https://release-server.nsw.p.network/gpg/pnetwork.asc
         enabled: yes
         gpgcheck: yes

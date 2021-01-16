@@ -9,10 +9,11 @@ logger = logging.getLogger(__name__)
 def bridge_mng(args):
     '''
     Manage the bridge commands:
-    - start/stop single/all container/s by node-name
+    - start, stop, restart and deploy (single/all) container/s by node-name
+    (and bridge name if not `all`)
 
     Args:
-        param1: CLI args
+        param1: cli args
     '''
     if args.action[0] in ('start', 'restart', 'stop', 'deploy') and args.bridge_comp[0] == 'all':
         cmd = f'ptokens_bridge {args.action[0]}'

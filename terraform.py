@@ -10,13 +10,14 @@ import node
 import utils as utl
 from client_config import CLI_CONFIG
 
+
 logger = logging.getLogger(__name__)
 
 def replace_variables_tf(args_dict, node_name):
     '''
     Dynamically load variables template
-    Loop and replace variables.tf.json.orig placeholders
-    File variables.tf.json saved
+    Loop and replace `/etc/pnode/terraform/variables.tf.json.orig`
+    placeholders into `/etc/pnode/terraform/<node_name>/variables.tf.json`
 
     Args:
         param1: config file
@@ -44,8 +45,8 @@ def replace_variables_tf(args_dict, node_name):
 def tf_cmd(cmd, node_name):
     '''
     Move into terraform bin folder and run command
-    (terraform init works on dir so need to move into that folder to run terraform commands
-    related to that instance [*.tfstate file])
+    (terraform init works on dir so need to move into that folder in order to run
+    terraform commands related to that instance [<node_name>.tfstate file])
 
     Args:
         param1: command to run
@@ -60,8 +61,7 @@ def tf_cmd(cmd, node_name):
 
 def destroy_instance(node_name):
     '''
-    Destroy instance and related file
-    Based on `node_name`
+    Destroy instance and related file (by node name if running nodes > 1)
 
     Args:
         param1: node name
@@ -79,16 +79,18 @@ def destroy_instance(node_name):
 
 def input_str(i_key, i_value, args_dict, node_name, PICK=''):
     '''
-    `if PICK` -> pickle state found, so check if key in PICK (var in state) and
-    print in stdout as default
-    if no state found, ask user for value while printing a default.
+    Dynamically ask for values on stdin
+    Write operator access_key_id and secret_key_id on instance path ~/.iam_credentials
+    If `PICK` -> pickle state found, so check if key in PICK (var in state) and
+    print in stdout as default to not loose last stdin values
+    If no state found, ask user for value while printing a default
 
     Args:
-        param1: key (from loop_inst_config_and_edit_dict()
-        param2: value (from loop_inst_config_and_edit_dict()
-        param3: value dict (from loop_inst_config_and_edit_dict()
+        param1: key (from loop_inst_config_and_edit_dict())
+        param2: value (from loop_inst_config_and_edit_dict())
+        param3: value dict (from loop_inst_config_and_edit_dict())
         param4: [optional] PICK dict
-        return: arg dictionary got in input, edited
+        return: args dictionary got in input, edited (exit if `KeyboardInterrupt`)
     '''
     iam_cred_dict = {}
     try:
@@ -99,15 +101,17 @@ def input_str(i_key, i_value, args_dict, node_name, PICK=''):
             if new_val != '':
                 args_dict[i_key] = new_val
                 return args_dict
-        if i_key == 'access_key_id' or i_key == 'secret_key_id':
-            new_val = str(input(f'>>> [node creation] insert {i_key} (default: {i_value}): ') or i_value)
-        elif i_key == 'access_key_id' or i_key == 'secret_key_id':
-            new_val = str(input(f'>>> [node operation] insert {i_key} (default: {i_value}): ') or i_value)
+        if i_key in ('access_key_id', 'secret_key_id'):
+            new_val = str(input(f'>>> [node creation] insert {i_key} '
+                                f'(default: {i_value}): ') or i_value)
+        elif i_key in ('access_key_id', 'secret_key_id'):
+            new_val = str(input(f'>>> [node operation] insert {i_key} '
+                                f'(default: {i_value}): ') or i_value)
         else:
             new_val = str(input(f'>>> insert {i_key} (default: {i_value}): ') or i_value)
             iam_cred_dict[i_key[:-3]] = new_val
         json_iam_cred = json.dumps(iam_cred_dict)
-        utl.write_file(json.loads(json_iam_cred), '/home/ec2-user/.iam_credentials')
+        utl.write_file(json.loads(json_iam_cred), CLI_CONFIG['iam_cred_path'])
         if new_val != '':
             args_dict[i_key] = new_val
             return args_dict
@@ -119,12 +123,12 @@ def input_str(i_key, i_value, args_dict, node_name, PICK=''):
 
 def loop_inst_config_and_edit_dict(node_name):
     '''
-    Load inst_config, loop it, call `input_str` to manage user input
+    Load `inst_config` config file, loop it, call `input_str` to manage user inputs
     Save the edited file in path, based on `node_name`
 
     Args:
-        param1: instance name
-        return: arg dictionary, edited
+        param1: node name
+        return: args dictionary, edited
     '''
     state = False
     args_dict = json.load(open(CLI_CONFIG['inst_config_path']))
@@ -155,11 +159,12 @@ def loop_inst_config_and_edit_dict(node_name):
 def dump_default_variable_tf(node_name):
     '''
     Same as `loop_inst_config_and_edit_dict` but in non-advance mode
-    Ask for: access_key_id, secret_access_key, inst_name and key_name
+    Ask for: [node]access_key_id, [node]secret_access_key, [operator]access_key_id,
+             [operator]secret_access_key, inst_name and key_name
 
     Args:
         param1: node name
-        return: arg dictionary, edited
+        return: args dictionary, edited
     '''
     args_dict = json.load(open(CLI_CONFIG['inst_config_path']))
     az, ami = utl.pick_up_a_region()
@@ -196,23 +201,17 @@ def dump_default_variable_tf(node_name):
 
 def provisioning(args, update=False):
     '''
-    Terraform instance provisioning:
-    - check if it's an instance update or full provisioning
-    - create the new node's folder (only if it's a provisioning)
-    - copy the file `variables.tf.json`
-    - copy the file `output.tf`
-    - copy the file `main.tf`
-    - init terraform and run `plan` to verify the new instance details
-    - if confirmed, apply the plan, using the node's terraform's state file
-    - only if update=False:
-        - create the `hosts` file (named by `node_name`)
-        - deploy tools and config via ansible
-        - reboot the instance
-        - run pnode commands in order to setup and run the node and its bridge
+    Terraform instance provisioning, deploy the node via terraform, setup
+    server w/ needed tools via ansible playbooks, start every service via pnode
+    commands
 
     Args:
         param1: CLI args
+        param2: [optional] update mode
     '''
+    dev_mode = False
+    if args.dev_mode is True:
+        dev_mode = True
     print('>>> given your selection, we will be provisioning a pnetwork node of type NITRO')
     node_name = utl.random_name_generator()
     if update is False and utl.check_for_file_in_path(node_name,
@@ -278,7 +277,9 @@ def provisioning(args, update=False):
         logger.info('Wait for machine to be ready')
         print('>>> waiting for machine to be ready')
         time.sleep(40)
-        utl.scp_file('/home/ec2-user/.iam_credentials', './.iam_credentials', node_name, to_node=True)
+        utl.scp_file('/home/ec2-user/.iam_credentials',
+                     './.iam_credentials',
+                     node_name, to_node=True)
         ans.sys_config(node_name)
         new_rnd_pwd = utl.random_pwd_generator()
         pwd_file_content = (f'user: {CLI_CONFIG["inst_user"]} - '
@@ -289,13 +290,16 @@ def provisioning(args, update=False):
         print(f'>>> credentials dumped in {pwd_file_path}')
         ans.edit_inst_user_pwd(node_name, new_rnd_pwd)
         time.sleep(20)
-        utl.run_remote_cmd('echo "{new_rnd_pwd}" > {CLI_CONFIG["inst_cred_path"]}',
-                           node_name)
+        cred_file_echo_str = f"'{new_rnd_pwd}' > {CLI_CONFIG['inst_cred_path']}"
+        utl.run_remote_cmd(f'"echo {cred_file_echo_str}"', node_name)
         utl.reboot_system(node_name)
         logger.info('Wait for machine to come back online after reboot')
         print('>>> waiting for machine to come back online after reboot')
         time.sleep(120)
-        ans.deploy_pnode_package_playbook(node_name)
+        if dev_mode is True:
+            ans.deploy_pnode_package_playbook(node_name, CLI_CONFIG['pnetwork_pnode_url_dev'])
+        else:
+            ans.deploy_pnode_package_playbook(node_name, CLI_CONFIG['pnetwork_pnode_url'])
         node.pnode_setup_and_start_cmds(node_name, new_rnd_pwd)
         print(utl.print_ok_str('##########################'))
         print(utl.print_ok_str('>>> configuration ended - details:'))

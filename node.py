@@ -6,11 +6,12 @@ import terraform as trf
 import utils as utl
 from client_config import CLI_CONFIG
 
+
 logger = logging.getLogger(__name__)
 
 def ssh_into_node(node_name):
     '''
-    Open a ssh tunnel on the instance, by node-name
+    Open a ssh tunnel to the instance (by node-name if running nodes > 1)
 
     Args:
         param1: node name
@@ -31,10 +32,11 @@ def ssh_into_node(node_name):
 
 def exec_cmd_on_node(args, node_name):
     '''
-    Remote execute command/script on the instance, by node-name
+    Remote execute command/script on the instance (by node-name if running nodes > 1)
 
     Args:
         param1: CLI args
+        param2: node name
     '''
     if args.exec_script:
         res = utl.run_remote_script(args.exec_script, node_name)
@@ -45,16 +47,16 @@ def exec_cmd_on_node(args, node_name):
 
 def update_pnode_pkg(node_name, pkg=None):
     '''
-    Update single subpackage or whole pnode package
+    Update single subpackage or whole pnode package (by node name if running nodes > 1)
 
     Args:
         param1: node name
-        param2: pkg name if single
+        param2: [optional] pkg name (if not `all`)
     '''
     if pkg is None or (len(pkg) == 1 and 'all' in pkg):
         logger.info('Update pnode')
         print('>>> update pnode')
-        utl.run_remote_cmd('sudo yum clean all', node_name, output=False)
+        utl.run_remote_cmd('sudo yum clean all -q', node_name, output=False)
         utl.run_remote_cmd('sudo yum info pnode-nitro*', node_name, output=False)
         utl.run_remote_cmd('sudo yum update pnode-nitro* -y', node_name, output=False)
     elif pkg is not None and (len(pkg) > 1 and 'all' not in pkg):
@@ -73,7 +75,7 @@ def update_pnode_pkg(node_name, pkg=None):
 
 def node_clean(node_name):
     '''
-    Delete unused config file (due to error on tf, ansible, etc)
+    Delete unused config file (due to error on tf, ansible, etc) by node name
 
     Args:
         param1: node name
@@ -94,7 +96,7 @@ def pnode_setup_and_start_cmds(node_name, new_rnd_pwd):
 
     Args:
         param1: node name
-        param2: password
+        param2: user password
     '''
     try:
         utl.run_remote_cmd(f'pnode_logs_viewer start >> {CLI_CONFIG["pcli_log_path"]} 2>&1',
@@ -112,14 +114,6 @@ def pnode_setup_and_start_cmds(node_name, new_rnd_pwd):
         logger.error(f'Error running pnode_nitro_enclave deploy: \n{exc}')
         print('>>> error running pnode_nitro_enclave deploy')
     try:
-        utl.run_remote_cmd(f'pnode_nitro_enclave start >> {CLI_CONFIG["pcli_log_path"]} 2>&1',
-                           node_name,
-                           output=False,
-                           nowait=True)
-    except Exception as exc:
-        logger.error(f'Error running pnode_nitro_enclave start: \n{exc}')
-        print('>>> error running pnode_nitro_enclave start')
-    try:
         time.sleep(60)
         utl.run_remote_cmd(f'ptokens_bridge deploy >> {CLI_CONFIG["pcli_log_path"]} 2>&1',
                            node_name,
@@ -128,7 +122,8 @@ def pnode_setup_and_start_cmds(node_name, new_rnd_pwd):
         logger.error(f'Error running ptokens_bridge deploy: \n{exc}')
         print('>>> error running ptokens_bridge deploy')
     try:
-        start_dashboard_cmd = f'pnode_dashboard start {new_rnd_pwd} >> {CLI_CONFIG["pcli_log_path"]} 2>&1'
+        start_dashboard_cmd = (f'pnode_dashboard start {new_rnd_pwd} '
+                               f'>> {CLI_CONFIG["pcli_log_path"]} 2>&1')
         utl.run_remote_cmd(start_dashboard_cmd, node_name, output=True)
     except Exception as exc:
         logger.error(f'Error running pnode_dashboard start {new_rnd_pwd}:\n{exc}')
@@ -137,14 +132,22 @@ def pnode_setup_and_start_cmds(node_name, new_rnd_pwd):
 
 def node_mng(args):
     '''
-    Manage all the `node` commands and:
-    - check arg `node_name`
-    - check if `provider` arg not null when provisioning an instance
-    - check if `provider` is `aws`
+    Manage all the `node` commands
+    Checks:
+    - `--dev` enabled only on `provisioning` cmd
+    - number of running nodes, if > 1 `node_name` is required
+    - node name if running node == 1 (and `-n` is not required)
+    - node name NOT required on `provisioning` cmd
+    - node name required on `clean` cmd
+    - active nodes before `exec`, `destroy`, `ssh` or `update` to avoid errors
 
     Args:
         param1: CLI args
     '''
+    if args.action[0] != 'provisioning' and args.dev_mode is True:
+        logger.error('The following argument is not enabled: dev mode')
+        print('>>> error - the following argument is not enabled: dev mode')
+        sys.exit(1)
     if args.action[0] in ('destroy', 'exec',
                           'ssh', 'update') and utl.get_inst_list(nodes_nr=True) > 1:
         if args.node_name is None:
@@ -159,12 +162,12 @@ def node_mng(args):
                             'ssh', 'update') and utl.get_inst_list(nodes_nr=True) == 1:
         node_name = utl.get_inst_list(nodes_nr=False, single_node=True)
     if args.action[0] == 'provisioning' and args.node_name is not None:
-        logger.error('The following arguments is not required: node name')
-        print('>>> error - the following arguments is not required: node name')
+        logger.error('The following argument is not required: node name')
+        print('>>> error - the following argument is not required: node name')
         sys.exit(1)
     if args.action[0] == 'clean' and args.node_name is None:
-        logger.error('The following arguments is required: node name')
-        print('>>> error - the following arguments is required: node name')
+        logger.error('The following argument is required: node name')
+        print('>>> error - the following argument is required: node name')
         sys.exit(1)
     if args.action[0] == 'clean':
         logger.info('Run command node clean')
@@ -174,19 +177,39 @@ def node_mng(args):
         trf.provisioning(args, update=True)
     elif args.action[0] == 'exec':
         logger.info('Run command exec on node')
-        exec_cmd_on_node(args, node_name)
+        if utl.get_inst_list(nodes_nr=True) == 0:
+            logger.info('No active nodes')
+            print('>>> no active nodes')
+            sys.exit(1)
+        else:
+            exec_cmd_on_node(args, node_name)
     elif args.action[0] == 'list':
         logger.info('Run command node list')
         utl.get_inst_list()
     elif args.action[0] == 'destroy':
         logger.info('Run command node destroy')
-        trf.destroy_instance(node_name)
+        if utl.get_inst_list(nodes_nr=True) == 0:
+            logger.info('No active nodes')
+            print('>>> no active nodes')
+            sys.exit(1)
+        else:
+            trf.destroy_instance(node_name)
     elif args.action[0] == 'provisioning':
         logger.info('Run command node provisioning')
         trf.provisioning(args)
     elif args.action[0] == 'ssh':
         logger.info('Run command node ssh')
-        ssh_into_node(node_name)
+        if utl.get_inst_list(nodes_nr=True) == 0:
+            logger.info('No active nodes')
+            print('>>> no active nodes')
+            sys.exit(1)
+        else:
+            ssh_into_node(node_name)
     elif args.action[0] == 'update':
         logger.info('Update pnode package')
-        update_pnode_pkg(node_name, pkg=args.pkg_name)
+        if utl.get_inst_list(nodes_nr=True) == 0:
+            logger.info('No active nodes')
+            print('>>> no active nodes')
+            sys.exit(1)
+        else:
+            update_pnode_pkg(node_name, pkg=args.pkg_name)
