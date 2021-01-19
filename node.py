@@ -1,6 +1,7 @@
 import logging
 import time
 import sys
+import requests
 
 import terraform as trf
 import utils as utl
@@ -90,6 +91,18 @@ def node_clean(node_name):
     logger.error(f'{node_name}: ssh keypair deleted')
     print(f'>>> {node_name}: ssh keypair deleted')
 
+def check_nitro_deploy_status(pub_ip):
+    '''
+    Call bridge ping api and return status_code
+
+    Args:
+        param1: public ip
+        return: call status code
+    '''
+    logger.info(f'Calling http://{pub_ip}:4242/pbtc-on-eth/ping to get bridge status')
+    nitro_ret_code = requests.get(f'http://{pub_ip}:4242/pbtc-on-eth/ping').status_code
+    return nitro_ret_code
+
 def pnode_setup_and_start_cmds(node_name, new_rnd_pwd):
     '''
     Run pnode tools suite commands on node
@@ -98,6 +111,8 @@ def pnode_setup_and_start_cmds(node_name, new_rnd_pwd):
         param1: node name
         param2: user password
     '''
+    nitro_ret_code = 0
+    pub_ip = utl.get_pub_ip(node_name)
     try:
         utl.run_remote_cmd(f'pnode_logs_viewer start >> {CLI_CONFIG["pcli_log_path"]} 2>&1',
                            node_name,
@@ -109,12 +124,13 @@ def pnode_setup_and_start_cmds(node_name, new_rnd_pwd):
     try:
         utl.run_remote_cmd(f'pnode_nitro_enclave deploy >> {CLI_CONFIG["pcli_log_path"]} 2>&1',
                            node_name,
-                           output=True)
+                           output=False,
+                           nowait=True)
     except Exception as exc:
         logger.error(f'Error running pnode_nitro_enclave deploy: \n{exc}')
         print('>>> error running pnode_nitro_enclave deploy')
+    time.sleep(120)
     try:
-        time.sleep(60)
         utl.run_remote_cmd(f'ptokens_bridge deploy >> {CLI_CONFIG["pcli_log_path"]} 2>&1',
                            node_name,
                            output=True)
@@ -128,7 +144,16 @@ def pnode_setup_and_start_cmds(node_name, new_rnd_pwd):
     except Exception as exc:
         logger.error(f'Error running pnode_dashboard start {new_rnd_pwd}:\n{exc}')
         print(f'>>> error running pnode_dashboard start {new_rnd_pwd}')
-
+    while nitro_ret_code != 200:
+        try:
+            time.sleep(5)
+            nitro_ret_code = check_nitro_deploy_status(pub_ip)
+            logger.info(f'nitro api ping return code: {nitro_ret_code}')
+        except Exception as exc:
+            time.sleep(5)
+            nitro_ret_code = 0
+            logger.error('nitro api ping not ready - retrying in 5s')
+    print('>>> nitro enclave status: ready')
 
 def node_mng(args):
     '''

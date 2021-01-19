@@ -11,7 +11,7 @@ import yaml
 from client_config import CLI_CONFIG
 
 
-__version__ = '0.0-1'
+__version__ = '0.1-1'
 
 logger = logging.getLogger(__name__)
 
