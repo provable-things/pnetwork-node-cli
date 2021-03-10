@@ -1,5 +1,6 @@
 import logging
 import sys
+from tqdm import tqdm
 
 import utils as utl
 from client_config import CLI_CONFIG
@@ -18,14 +19,14 @@ def write_ansible_hosts_file(pub_ip, inst_user, ssh_priv_key_path, node_name):
         param4: node name
     '''
     logger.info('Writing ansible\'s hosts file...')
-    print('>>> writing ansible\'s hosts file...')
+    tqdm.write('>>> writing ansible\'s hosts file...')
     try:
         hosts_path = f'{CLI_CONFIG["ans_hosts_path"]}-{node_name}'
         cont = (f'[nodes]\n{pub_ip} ansible_ssh_user={inst_user}'
                 f' ansible_ssh_private_key_file={ssh_priv_key_path}')
         utl.write_file(cont, hosts_path)
         logger.info('Ansible hosts file created')
-        print('>>> ansible hosts file created')
+        tqdm.write('>>> ansible hosts file created')
     except Exception as exc:
         logger.error(f'Error writing hosts file for ansible\n{exc}')
         print(utl.print_err_str('>>> error writing hosts file for ansible'))
@@ -47,7 +48,7 @@ def run_playbook(ans_playbooks_path,
     '''
     if extra_vars is None:
         logger.info('Running playbooks')
-        print('>>> running ansible playbooks')
+        tqdm.write('>>> running ansible playbooks')
         try:
             utl.run_cmd('ANSIBLE_HOST_KEY_CHECKING=False '
                         f'ansible-playbook '
@@ -59,7 +60,7 @@ def run_playbook(ans_playbooks_path,
             sys.exit(1)
     else:
         logger.info('Running playbooks')
-        print('>>> running ansible playbooks')
+        tqdm.write('>>> running ansible playbooks')
         try:
             utl.run_cmd('ANSIBLE_HOST_KEY_CHECKING=False '
                         f'ansible-playbook '
@@ -80,7 +81,7 @@ def sys_config(node_name):
         param1: node name
     '''
     logger.info('Deploying sys_config ansible playbook')
-    print('>>> deploying sys_config ansible playbook')
+    tqdm.write('>>> deploying sys_config ansible playbook')
     hosts_path = f'{CLI_CONFIG["ans_hosts_path"]}-{node_name}'
     run_playbook(CLI_CONFIG['ans_playbooks_path'],
                  'sys_config.yml',
@@ -96,7 +97,7 @@ def deploy_pnode_package_playbook(node_name, pnode_rel_url):
         param2: release-server url (prod or dev - based on `--dev` arg)
     '''
     logger.info('Deploying pnode_package ansible playbook')
-    print('>>> deploying pnode_package ansible playbook')
+    tqdm.write('>>> deploying pnode_package ansible playbook')
     hosts_path = f'{CLI_CONFIG["ans_hosts_path"]}-{node_name}'
     run_playbook(CLI_CONFIG['ans_playbooks_path'],
                  'pnode_package.yml',

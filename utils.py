@@ -5,8 +5,9 @@ import pickle
 import random
 import string
 import subprocess
-import random_name
 import yaml
+from tqdm import tqdm
+import random_name
 
 from client_config import CLI_CONFIG
 
@@ -191,8 +192,8 @@ def reboot_system(node_name):
        param1: node name
     '''
     logger.info('Rebooting system')
-    print('>>> rebooting system')
-    run_remote_cmd('sudo shutdown -r +1', node_name)
+    tqdm.write('>>> rebooting system')
+    run_remote_cmd('sudo shutdown -r +1 > /dev/null 2> /dev/null', node_name)
 
 def get_inst_list(nodes_nr=False, single_node=False):
     '''
@@ -292,7 +293,6 @@ def write_file(file_content, dest_path, file_list=False, state=False):
             with open(dest_path, 'a') as f_gen:
                 f_gen.write(file_content)
             logger.info(f'{dest_path} saved')
-            print(f'>>> {dest_path} saved')
     except Exception as exc:
         logger.error(f'Error while writing {dest_path}\n{exc}')
         print(print_err_str('>>> error while writing {dest_path}'))
@@ -311,7 +311,7 @@ def check_for_file_in_path(file_name, path, isdir=False, no_stdout=False):
     if isdir is True:
         if os.path.isdir(f'{path}{file_name}'):
             logger.info(f'{path}{file_name} found')
-            print(f'>>> {path}{file_name} found')
+            tqdm.write(f'>>> {path}{file_name} found')
             return True
     if no_stdout is True:
         if os.path.isfile(f'{path}{file_name}'):
@@ -321,10 +321,10 @@ def check_for_file_in_path(file_name, path, isdir=False, no_stdout=False):
         return False
     if os.path.isfile(f'{path}{file_name}'):
         logger.info(f'{path}{file_name} found')
-        print(f'>>> {path}{file_name} found')
+        tqdm.write(f'>>> {path}{file_name} found')
         return True
     logger.info(f'{path}{file_name} not found')
-    print(f'>>> {path}{file_name} not found')
+    tqdm.write(f'>>> {path}{file_name} not found')
     return False
 
 def copy_file_in_path(origin, dest):
@@ -360,20 +360,24 @@ def pick_up_a_region():
     Args:
         return: choosen region and ami
     '''
-    az = input('>>> select your region of choice (by number)\n'
-               '>>> 1 - N.Virginia\n'
-               '>>> 2 - Oregon\n'
-               '>>> 3 - N.California\n'
-               '>>> 4 - Ireland\n'
-               '>>> 5 - Frankfurt\n'
-               '>>> 6 - Singapore\n'
-               '>>> 7 - Tokyo\n'
-               '>>> 8 - Sydney\n'
-               '>>> 9 - Seoul\n'
-               '>>> 10 - San Paulo\n'
-               '>>> 11 - London\n'
-               '>>> 12 - Mumbai\n'
-               '>>> choice: ') or 1
+    while True:
+        az = input('>>> select your region of choice (by number)\n'
+                   '>>> 1 - N.Virginia\n'
+                   '>>> 2 - Oregon\n'
+                   '>>> 3 - N.California\n'
+                   '>>> 4 - Ireland\n'
+                   '>>> 5 - Frankfurt\n'
+                   '>>> 6 - Singapore\n'
+                   '>>> 7 - Tokyo\n'
+                   '>>> 8 - Sydney\n'
+                   '>>> 9 - Seoul\n'
+                   '>>> 10 - San Paulo\n'
+                   '>>> 11 - London\n'
+                   '>>> 12 - Mumbai\n'
+                   '>>> choice: ')
+        if az and int(az) in range(13):
+            break
+
     AZ_MAP = {1: 'us-east-1',
               2: 'us-west-2',
               3: 'us-west-1',
@@ -386,8 +390,10 @@ def pick_up_a_region():
               10: 'sa-east-1',
               11: 'eu-west-2',
               12: 'ap-south-1'}
+
     sel_az = AZ_MAP[int(az)]
     print(f'>>> {sel_az} selected')
+
     AMI_MAP = {'us-east-1': 'ami-0be2609ba883822ec',
                'us-west-2': 'ami-0a36eb8fadc976275',
                'us-west-1': 'ami-03130878b60947df3',
@@ -400,6 +406,7 @@ def pick_up_a_region():
                'sa-east-1': 'ami-022082b7f1da62478',
                'eu-west-2': 'ami-0e80a462ede03e653',
                'ap-south-1': 'ami-04b1ddd35fd71475a'}
+
     sel_ami = AMI_MAP[sel_az]
     print(f'>>> {sel_ami} selected')
     return sel_az, sel_ami
@@ -415,7 +422,7 @@ def random_pwd_generator():
     pwd_chars = string.ascii_letters + string.digits
     pwd = ''.join(random.choice(pwd_chars) for i in range(36))
     logging.info('Random password generated')
-    print('>>> random password generated')
+    tqdm.write('>>> random password generated')
     return pwd
 
 def random_name_generator():

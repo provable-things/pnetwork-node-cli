@@ -2,6 +2,7 @@ import logging
 import time
 import sys
 import requests
+from tqdm import tqdm
 
 import terraform as trf
 import utils as utl
@@ -117,7 +118,7 @@ def pnode_setup_and_start_cmds(node_name, new_rnd_pwd):
         utl.run_remote_cmd(f'pnode_logs_viewer start >> {CLI_CONFIG["pcli_log_path"]} 2>&1',
                            node_name,
                            output=True)
-        print('>>> starting all pnode_nitro components')
+        tqdm.write('>>> starting all pnode_nitro components')
     except Exception as exc:
         logger.error(f'Error running pnode_logs_viewer_start:\n{exc}')
         print('>>> error running pnode_logs_viewer_start')
@@ -153,7 +154,7 @@ def pnode_setup_and_start_cmds(node_name, new_rnd_pwd):
             time.sleep(5)
             nitro_ret_code = 0
             logger.error('nitro api ping not ready - retrying in 5s')
-    print('>>> nitro enclave status: ready')
+    tqdm.write('>>> nitro enclave status: ready')
 
 def node_mng(args):
     '''

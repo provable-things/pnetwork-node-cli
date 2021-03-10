@@ -3,6 +3,7 @@ import logging
 import os
 import time
 import sys
+from tqdm import tqdm
 import hcl
 
 import ansible as ans
@@ -53,11 +54,11 @@ def tf_cmd(cmd, node_name):
         param2: node name
     '''
     logger.info(f'Running: terraform {cmd}')
-    print(f'>>> running: terraform {cmd}')
+    tqdm.write(f'>>> running: terraform {cmd}')
     utl.run_cmd(f'cd {CLI_CONFIG["tf_config_dir"]}{node_name}; terraform {cmd} '
                 f'>> {CLI_CONFIG["pcli_log_path"]} 2>&1')
     logger.info(f'Terraform {cmd}: complete')
-    print(f'>>> terraform {cmd}: complete')
+    tqdm.write(f'>>> terraform {cmd}: complete')
 
 def destroy_instance(node_name):
     '''
@@ -247,23 +248,30 @@ def provisioning(args, update=False):
                           main_tf_path)
     utl.copy_file_in_path(CLI_CONFIG['tf_output_orig_path'],
                           output_tf_path)
+    p_bar = tqdm(total=100, bar_format='{desc} {percentage:.0f}%|{bar}| {n_fmt}/{total_fmt}')
+    p_bar.set_description('terraform init')
     tf_cmd('init', node_name)
+    p_bar.update(5)
     try:
+        p_bar.set_description('terraform plan')
         tf_cmd('plan', node_name)
+        p_bar.update(15)
     except Exception as exc:
         logger.info(f'terraform plan error:\n{exc}')
-        print(f'>>> terraform plan error:\n{exc}')
-        print(f'>>> please run `pcli node clean -n {node_name}` to delete unused files')
+        tqdm.write(f'>>> terraform plan error:\n{exc}')
+        tqdm.write(f'>>> please run `pcli node clean -n {node_name}` to delete unused files')
         sys.exit(1)
     try:
+        p_bar.set_description('terraform apply')
         if args.adv_mode is None:
             tf_cmd(f'apply -auto-approve', node_name)
         else:
             tf_cmd(f'apply', node_name)
+        p_bar.update(15)
     except Exception as exc:
         logger.info(f'terraform apply error:\n{exc}')
-        print(f'>>> terraform apply error:\n{exc}')
-        print(f'>>> please run `pcli node clean -n {node_name}` to delete unused files')
+        tqdm.write(f'>>> terraform apply error:\n{exc}')
+        tqdm.write(f'>>> please run `pcli node clean -n {node_name}` to delete unused files')
         sys.exit(1)
     if update is False:
         pub_ip = utl.get_pub_ip(node_name)
@@ -275,27 +283,38 @@ def provisioning(args, update=False):
                                          CLI_CONFIG['pcli_ssh_key_path'] + node_name,
                                          node_name)
         logger.info('Wait for machine to be ready')
-        print('>>> waiting for machine to be ready')
+        tqdm.write('>>> waiting for machine to be ready')
+        p_bar.set_description('startup machine')
         time.sleep(40)
+        p_bar.update(10)
         utl.scp_file('/home/ec2-user/.iam_credentials',
                      './.iam_credentials',
                      node_name, to_node=True)
+        p_bar.set_description('install tools on machine')
         ans.sys_config(node_name)
+        p_bar.update(5)
+        p_bar.set_description('startup machine')
         new_rnd_pwd = utl.random_pwd_generator()
-        pwd_file_content = (f'user: {CLI_CONFIG["inst_user"]} - '
-                            f'{new_rnd_pwd}: {pub_ip}\n')
+        pwd_file_content = (f'user: {CLI_CONFIG["inst_user"]} - pwd: '
+                            f'{new_rnd_pwd} - IP: {pub_ip}\n')
         pwd_file_path = f'{CLI_CONFIG["tf_config_dir"]}{node_name}/.{node_name}-cred'
         utl.write_file(pwd_file_content, pwd_file_path)
         logger.info(f'Credentials dumped in {pwd_file_path}')
-        print(f'>>> credentials dumped in {pwd_file_path}')
+        tqdm.write(f'>>> credentials dumped in {pwd_file_path}')
         ans.edit_inst_user_pwd(node_name, new_rnd_pwd)
+        p_bar.update(5)
+        p_bar.set_description('startup machine')
         time.sleep(20)
         cred_file_echo_str = f"'{new_rnd_pwd}' > {CLI_CONFIG['inst_cred_path']}"
         utl.run_remote_cmd(f'"echo {cred_file_echo_str}"', node_name)
+        p_bar.update(15)
+        p_bar.set_description('reboot machine')
         utl.reboot_system(node_name)
         logger.info('Wait for machine to come back online after reboot')
-        print('>>> waiting for machine to come back online after reboot')
+        tqdm.write('>>> waiting for machine to come back online after reboot')
         time.sleep(120)
+        p_bar.update(20)
+        p_bar.set_description('setup node')
         if dev_mode is True:
             ans.deploy_pnode_package_playbook(node_name, CLI_CONFIG['pnetwork_pnode_url_dev'])
         else:
@@ -310,3 +329,5 @@ def provisioning(args, update=False):
         print(utl.print_ok_str(f'>>> http://{pub_ip}:8080'))
         print(utl.print_ok_str('>>> user: operator'))
         print(utl.print_ok_str(f'>>> password: {new_rnd_pwd}'))
+        p_bar.update(10)
+        p_bar.close()
