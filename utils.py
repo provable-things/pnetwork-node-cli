@@ -117,7 +117,7 @@ def run_remote_cmd(cmd, node_name, output=False, nowait=False, comm=False):
         try:
             pub_ip = get_pub_ip(node_name)
             priv_key_path = CLI_CONFIG['pcli_ssh_key_path'] + node_name
-            run_cmd(f'ssh -i {priv_key_path} '
+            run_cmd(f'ssh -tt -q -i {priv_key_path} '
                     f'{CLI_CONFIG["inst_user"]}@{pub_ip} {cmd}')
         except Exception as exc:
             logger.error(f'Error running command {cmd} on {node_name}\n{exc}')
