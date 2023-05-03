@@ -25,8 +25,6 @@
   - name: Download nitro cli
     become: yes
     shell: amazon-linux-extras install aws-nitro-enclaves-cli -y
-    args:
-      warn: false
     tags:
       - nitro-enclave
   - name: Install aws-nitro-enclaves-cli-devel
@@ -152,16 +150,12 @@
     become: no
     become_user: ec2-user
     shell: curl https://sh.rustup.rs -sSf | sh -s -- -y
-    args:
-      warn: false
     tags:
       - rust
   - name: Set rustup path in source
     become: no
     become_user: ec2-user
     shell: source $HOME/.cargo/env
-    args:
-      warn: false
     tags:
       - rust
   - name: Create /etc/pnode/data dir
